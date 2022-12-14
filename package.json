@@ -4,7 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsc --sourceMap false --declaration false"
+    "build": "tsc --sourceMap false --declaration false",
+    "lint": "eslint --ext .ts src/ test/",
+    "prettier": "prettier --write .",
+    "test": "jest",
+    "cover": "jest --collect-coverage"
   },
   "author": "",
   "license": "ISC",
@@ -15,6 +19,13 @@
   "devDependencies": {
     "@types/ms": "^0.7.31",
     "@types/node": "^18.11.13",
+    "@typescript-eslint/eslint-plugin": "^5.46.1",
+    "@typescript-eslint/parser": "^5.46.1",
+    "eslint": "^8.29.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "prettier": "^2.8.1",
+    "ts-jest": "^29.0.3",
     "typescript": "^4.9.4"
   }
 }
