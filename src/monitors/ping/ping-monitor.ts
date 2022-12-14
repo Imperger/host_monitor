@@ -1,4 +1,4 @@
-import { IpVersionPreference, PingClient, PingResult } from "./ping-client";
+import { PingClient } from "./ping-client";
 import { PingObserver } from "./ping-observer";
 
 export class PingMonitor {
