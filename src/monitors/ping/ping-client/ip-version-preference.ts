@@ -1,5 +1,5 @@
 export enum IpVersionPreference {
-    Any = '',
-    IpV4 = '-4',
-    IpV6 = '-6'
+  Any = '',
+  IpV4 = '-4',
+  IpV6 = '-6',
 }

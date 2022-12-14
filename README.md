@@ -2,7 +2,6 @@
 
 Host Monitor is a simple hosts monitoring service with notifications. Currently supports monitoring only through pinging and notifications through a telegram channel.
 
-
 ## Configuration
 
 Configuration file has three parts. In the `watch` section, the monitoring targets, the type and interval of the scans, as well as notification templates for monitoring events are specified. The `sinks` section contains the destination points for unloading monitoring events. There is the **console** predefined sink that just redirects to stdout. Some sinks may required credentials that can be configured in `credentials` section.
@@ -21,35 +20,35 @@ In the notification templates available few variables.
 
 ```json
 {
-    "locale": "en-US",
-    "timeZone": "Europe/Kyiv",
-    "credentials": {
-        "myTgBot": {
-            "type": "tg", // credentials type
-            "token": "bot-token"
-        }
-    },
-    "sinks": {
-        "someTgChannel": {
-            "type": "tg", // sink type
-            "credentials": "myTgBot", // credentials previously defined above
-            "channelId": -1001234567890
-        }
-    },
-    "watch": [
-        {
-            "hostname": "8.8.8.8", // target host
-            "ipVersion": "4", // 4 or 6, may be omitted
-            "monitor": "ping", // monitor type
-            "interval": 5, // in seconds
-            "onAliveTemplate": "🟩 $now $host now online, offline time $elapsed",
-            "onDeadTemplate": "🟥 $now $host now offline, online time $elapsed",
-            "sink": [
-                "someTgChannel", // sink previously defined above
-                "console" // predefined sink
-            ]
-        }
-    ]
+  "locale": "en-US",
+  "timeZone": "Europe/Kyiv",
+  "credentials": {
+    "myTgBot": {
+      "type": "tg", // credentials type
+      "token": "bot-token"
+    }
+  },
+  "sinks": {
+    "someTgChannel": {
+      "type": "tg", // sink type
+      "credentials": "myTgBot", // credentials previously defined above
+      "channelId": -1001234567890
+    }
+  },
+  "watch": [
+    {
+      "hostname": "8.8.8.8", // target host
+      "ipVersion": "4", // 4 or 6, may be omitted
+      "monitor": "ping", // monitor type
+      "interval": 5, // in seconds
+      "onAliveTemplate": "🟩 $now $host now online, offline time $elapsed",
+      "onDeadTemplate": "🟥 $now $host now offline, online time $elapsed",
+      "sink": [
+        "someTgChannel", // sink previously defined above
+        "console" // predefined sink
+      ]
+    }
+  ]
 }
 ```
 

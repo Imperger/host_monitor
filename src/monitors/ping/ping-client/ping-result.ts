@@ -1,5 +1,5 @@
 export interface PingResult {
-    isAlive: boolean;
-    loss: number;
-    rttAvg: number;
+  isAlive: boolean;
+  loss: number;
+  rttAvg: number;
 }
