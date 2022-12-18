@@ -1,6 +1,6 @@
 ## About
 
-Host Monitor is a simple hosts monitoring service with notifications. Currently supports monitoring only through pinging and notifications through a telegram channel.
+Host Monitor is a simple hosts monitoring service with notifications. Currently supports monitoring only through pinging and tcp port check with notifications through a telegram channel.
 
 ## Configuration
 
@@ -13,6 +13,12 @@ In the notification templates available few variables.
 `$host` - `hostname` property
 
 `$elapsed` - time elapsed from last changing host state
+
+In addition, with tcp-port monitor available few extra variables:
+
+`$port` - port
+
+`$ipv` - ip version
 
 ### Example
 
@@ -43,6 +49,20 @@ In the notification templates available few variables.
       "interval": 5, // in seconds
       "onAliveTemplate": "🟩 $now $host now online, offline time $elapsed",
       "onDeadTemplate": "🟥 $now $host now offline, online time $elapsed",
+      "sink": [
+        "someTgChannel", // sink previously defined above
+        "console" // predefined sink
+      ]
+    },
+    {
+      "hostname": "google.com",
+      "port": 443,
+      "ipVersion": "4",
+      "monitor": "tcp-port",
+      "timeout": 400, // in milliseconds
+      "interval": 5,
+      "onAliveTemplate": "🟩 $now ipv$ipv $host:$port now online, offline time $elapsed",
+      "onDeadTemplate": "🟥 $now ipv$ipv $host:$port now offline, online time $elapsed",
       "sink": [
         "someTgChannel", // sink previously defined above
         "console" // predefined sink
