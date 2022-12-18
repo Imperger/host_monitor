@@ -34,10 +34,6 @@ export class TcpPortConnector extends Connector implements TcpPortObserver {
   }
 
   private ReplaceKeywordsExt(str: string): string {
-    const timeNow = new Date().toLocaleTimeString(this.options.locale, {
-      timeZone: this.options.timeZone,
-    });
-
     return str
       .replaceAll('$host', this.Hostname)
       .replaceAll('$port', this.Port.toString())

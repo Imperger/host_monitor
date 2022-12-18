@@ -35,10 +35,6 @@ export class PingConnector extends Connector implements PingObserver {
   }
 
   private ReplaceKeywordsExt(str: string): string {
-    const timeNow = new Date().toLocaleTimeString(this.options.locale, {
-      timeZone: this.options.timeZone,
-    });
-
     return str.replaceAll('$host', this.Hostname);
   }
 }
