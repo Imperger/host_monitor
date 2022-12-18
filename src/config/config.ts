@@ -17,9 +17,21 @@ export interface Sinks {
   [id: string]: TgSink;
 }
 
-export interface PingMonitor {
+export interface PingMonitorConfig {
   monitor: 'ping';
   hostname: string;
+  ipVersion?: '4' | '6';
+  interval: number;
+  onAliveTemplate: string;
+  onDeadTemplate: string;
+  sink: string[];
+}
+
+export interface TcpPortMonitorConfig {
+  monitor: 'tcp-port';
+  hostname: string;
+  port: number;
+  timeout?: number;
   ipVersion?: '4' | '6';
   interval: number;
   onAliveTemplate: string;
@@ -32,5 +44,5 @@ export interface Config {
   timeZone: string;
   credentials?: Credentials;
   sinks?: Sinks;
-  watch: PingMonitor[];
+  watch: (PingMonitorConfig | TcpPortMonitorConfig)[];
 }

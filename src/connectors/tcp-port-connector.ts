@@ -1,9 +1,8 @@
-import { PingObserver } from '../monitors/ping/ping-observer';
-import { IpVersionPreference } from '../monitors/ping/ping-client';
-import { PingResult } from '../monitors/ping/ping-client';
 import { ToFullAsyncAccessors } from '../persistence/create-presistent';
 import { HostState } from '../persistence/host-state';
 import { Connector } from './connector';
+import { TcpPortObserver } from '../monitors/tcp-port/tcp-port-observer';
+import { IpVersion } from '../monitors/tcp-port/ip-version';
 
 interface FeedOptions {
   onAliveTemplate: string;
@@ -12,10 +11,12 @@ interface FeedOptions {
   timeZone: string;
 }
 
-export class PingConnector extends Connector implements PingObserver {
+export class TcpPortConnector extends Connector implements TcpPortObserver {
   constructor(
     public readonly Hostname: string,
-    public readonly IpVersionPreference: IpVersionPreference,
+    public readonly Port: number,
+    public readonly IpVersion: IpVersion | undefined,
+    public readonly ConnectionTimeout: number,
     public readonly Interval: number,
     options: FeedOptions,
     state: ToFullAsyncAccessors<HostState>
@@ -23,15 +24,13 @@ export class PingConnector extends Connector implements PingObserver {
     super(options, state);
   }
 
-  async Notify(status: PingResult): Promise<void> {
+  async Notify(isOpen: boolean): Promise<void> {
     this.Flush(
-      this.ReplaceKeywordsExt(
-        status.isAlive ? this.options.onAliveTemplate : this.options.onDeadTemplate
-      )
+      this.ReplaceKeywordsExt(isOpen ? this.options.onAliveTemplate : this.options.onDeadTemplate)
     );
 
     this.state.SetChecked(Date.now());
-    this.state.SetIsAlive(status.isAlive);
+    this.state.SetIsAlive(isOpen);
   }
 
   private ReplaceKeywordsExt(str: string): string {
@@ -39,6 +38,9 @@ export class PingConnector extends Connector implements PingObserver {
       timeZone: this.options.timeZone,
     });
 
-    return str.replaceAll('$host', this.Hostname);
+    return str
+      .replaceAll('$host', this.Hostname)
+      .replaceAll('$port', this.Port.toString())
+      .replaceAll('$ipv', this.IpVersion ?? '??');
   }
 }

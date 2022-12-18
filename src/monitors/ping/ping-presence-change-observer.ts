@@ -1,7 +1,7 @@
 import { PingObserver } from './ping-observer';
 import { IpVersionPreference, PingResult } from './ping-client';
 
-export class PresenceChangeObserver implements PingObserver {
+export class PingPresenceChangeObserver implements PingObserver {
   constructor(private readonly observer: PingObserver, private prevPresence?: boolean) {}
 
   get Hostname(): string {
