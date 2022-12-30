@@ -3,32 +3,37 @@ import { beforeEach, describe, expect, test } from '@jest/globals';
 import { Storage } from './storage';
 import { CreatePersistent, ToFullAsyncAccessors } from './create-presistent';
 
-interface Schema {
+async function NextTick() {
+  return new Promise<void>((ok) => setImmediate(ok));
+}
+
+interface FlatScheme {
   a: number;
   b: string;
   c: boolean;
 }
 
-class PassiveStorage implements Storage<Schema> {
-  async Store(state: Schema): Promise<void> {
+class PassiveStorage implements Storage<FlatScheme> {
+  async Store(state: FlatScheme): Promise<void> {
     return;
   }
-  async Load(): Promise<Schema | undefined> {
+  async Load(): Promise<FlatScheme | undefined> {
     return undefined;
   }
 }
 
-class MemStorageWithCounters implements Storage<Schema> {
+class MemStorageWithCounters<T> implements Storage<T> {
   private storeCounter = 0;
   private loadCounter = 0;
 
-  constructor(private obj?: Schema) {}
+  constructor(private obj?: T) {}
 
-  async Store(state: Schema): Promise<void> {
+  async Store(state: T): Promise<void> {
     this.obj = state;
     ++this.storeCounter;
   }
-  async Load(): Promise<Schema | undefined> {
+
+  async Load(): Promise<T | undefined> {
     ++this.loadCounter;
     return this.obj;
   }
@@ -40,10 +45,28 @@ class MemStorageWithCounters implements Storage<Schema> {
   get LoadCounter(): number {
     return this.loadCounter;
   }
+
+  get Value(): T | undefined {
+    return this.obj;
+  }
+}
+
+class MemStorageWitEmulatedStore<T> extends MemStorageWithCounters<T> {
+  constructor(obj?: T) {
+    super(obj);
+  }
+
+  async Store(state: T): Promise<void> {
+    return new Promise<void>((ok) => {
+      setImmediate(() => {
+        super.Store(state).then(ok);
+      });
+    });
+  }
 }
 
 describe('With passive storage', () => {
-  let obj: ToFullAsyncAccessors<Schema>;
+  let obj: ToFullAsyncAccessors<FlatScheme>;
 
   beforeEach(() => {
     obj = CreatePersistent(
@@ -84,8 +107,8 @@ describe('Load from storage', () => {
 });
 
 describe('With shared storage', () => {
-  let storage: MemStorageWithCounters;
-  let obj: ToFullAsyncAccessors<Schema>;
+  let storage: MemStorageWithCounters<FlatScheme>;
+  let obj: ToFullAsyncAccessors<FlatScheme>;
 
   beforeEach(() => {
     storage = new MemStorageWithCounters();
@@ -147,8 +170,8 @@ describe('With shared storage', () => {
 });
 
 describe('With exclusive storage', () => {
-  let storage: MemStorageWithCounters;
-  let obj: ToFullAsyncAccessors<Schema>;
+  let storage: MemStorageWithCounters<FlatScheme>;
+  let obj: ToFullAsyncAccessors<FlatScheme>;
 
   beforeEach(() => {
     storage = new MemStorageWithCounters();
@@ -194,17 +217,108 @@ describe('With exclusive storage', () => {
   });
 });
 
-describe('Some testcases', () => {
-  let storage: MemStorageWithCounters;
-  let obj: ToFullAsyncAccessors<Schema>;
+interface OneLevelNestedSchema {
+  a: string;
+  b: { c: number };
+}
+
+describe('Nested props', () => {
+  let storage: MemStorageWithCounters<OneLevelNestedSchema>;
 
   beforeEach(() => {
     storage = new MemStorageWithCounters();
-
-    obj = CreatePersistent({ a: Number, b: String, c: Boolean }, { exclusive: true, storage });
   });
 
-  test('Sequence of setters and getters', async () => {
+  test('one level nesting', async () => {
+    const obj = CreatePersistent({ a: String, b: { c: Number } }, { exclusive: true, storage });
+
+    await obj.b.SetC(10);
+
+    expect(obj.b.GetC()).resolves.toEqual(10);
+  });
+
+  test('store one level', async () => {
+    const obj = CreatePersistent({ a: String, b: { c: Number } }, { exclusive: true, storage });
+
+    await obj.b.SetC(10);
+
+    expect(storage.Value).toEqual({ b: { c: 10 } });
+  });
+
+  test('load state', async () => {
+    const producer = CreatePersistent(
+      { a: String, b: { c: Number } },
+      { exclusive: false, storage }
+    );
+    await producer.b.SetC(10);
+
+    const consumer = CreatePersistent(
+      { a: String, b: { c: Number } },
+      { exclusive: false, storage }
+    );
+
+    expect(consumer.b.GetC()).resolves.toEqual(10);
+  });
+
+  test("shouldn't use store while reconstruct state", async () => {
+    const producer = CreatePersistent(
+      { a: String, b: { c: Number } },
+      { exclusive: false, storage }
+    );
+    await producer.b.SetC(10);
+
+    const acceptableWrites = storage.StoreCounter;
+
+    const consumer = CreatePersistent(
+      { a: String, b: { c: Number } },
+      { exclusive: false, storage }
+    );
+
+    await consumer.b.GetC();
+
+    await NextTick();
+
+    expect(storage.StoreCounter).toEqual(acceptableWrites);
+  });
+});
+
+describe('store coherence', () => {
+  let storage: MemStorageWitEmulatedStore<OneLevelNestedSchema>;
+
+  beforeEach(() => {
+    storage = new MemStorageWitEmulatedStore();
+  });
+
+  test('should be stored after setter fulfilled', async () => {
+    const obj = CreatePersistent({ a: String, b: { c: Number } }, { exclusive: false, storage });
+
+    await obj.b.SetC(10);
+
+    expect(storage.StoreCounter).toBe(1);
+  });
+});
+
+interface DeeplyNestedSchema {
+  id: number;
+  profile: {
+    username: string;
+    sex: boolean;
+    contacts: {
+      phone: string;
+      messengers: {
+        skype: string;
+      };
+    };
+  };
+}
+
+describe('some testcases', () => {
+  test('sequence of setters and getters', async () => {
+    const storage = new MemStorageWithCounters<FlatScheme>();
+    const obj = CreatePersistent(
+      { a: Number, b: String, c: Boolean },
+      { exclusive: true, storage }
+    );
     await obj.SetA(10);
     await obj.SetB('20');
 
@@ -218,5 +332,41 @@ describe('Some testcases', () => {
     const b1 = await obj.GetB();
 
     expect({ a0, b0, a1, b1 }).toEqual({ a0: 10, b0: '20', a1: 40, b1: '30' });
+  });
+
+  test('sequence of nested setter and getters', async () => {
+    const storage = new MemStorageWithCounters<DeeplyNestedSchema>();
+    const schema = {
+      id: Number,
+      profile: {
+        username: String,
+        sex: Boolean,
+        contacts: { phone: String, messengers: { skype: String } },
+      },
+    };
+    const obj = CreatePersistent(schema, { exclusive: true, storage });
+
+    const mock = {
+      id: 10,
+      profile: {
+        username: 'Noname',
+        sex: true,
+        contacts: { phone: '12345', messengers: { skype: 'noname#123' } },
+      },
+    };
+
+    await obj.SetId(mock.id);
+    await obj.profile.SetUsername(mock.profile.username);
+    await obj.profile.SetSex(mock.profile.sex);
+    await obj.profile.contacts.SetPhone(mock.profile.contacts.phone);
+    await obj.profile.contacts.messengers.SetSkype(mock.profile.contacts.messengers.skype);
+
+    expect(obj.GetId()).resolves.toEqual(mock.id);
+    expect(obj.profile.GetUsername()).resolves.toEqual(mock.profile.username);
+    expect(obj.profile.GetSex()).resolves.toEqual(mock.profile.sex);
+    expect(obj.profile.contacts.GetPhone()).resolves.toEqual(mock.profile.contacts.phone);
+    expect(obj.profile.contacts.messengers.GetSkype()).resolves.toEqual(
+      mock.profile.contacts.messengers.skype
+    );
   });
 });

@@ -1,17 +1,32 @@
+import { isProxy } from 'util/types';
 import { Storage } from './storage';
 
-type RegularType<T> = T extends NumberConstructor
+type BaseType<T> = T extends NumberConstructor
   ? number
   : T extends StringConstructor
   ? string
   : T extends BooleanConstructor
   ? boolean
-  : T;
+  : never;
+
+type RegularType<T> = BaseType<T> extends never
+  ? { [p in keyof T]: RegularType<T[p]> }
+  : BaseType<T>;
 
 const GetterPrefix = 'Get';
 const SetterPrefix = 'Set';
 
 type RegularInterface<T> = { [p in keyof T]: RegularType<T[p]> };
+
+type RegularProps<T> = {
+  [p in { [K in keyof T]-?: BaseType<T[K]> extends never ? never : K }[keyof T]]: T[p];
+};
+
+type NestedProps<T> = Omit<T, keyof RegularProps<T>>;
+
+type PersistentType<T> = BaseType<T> extends never
+  ? { [p in keyof NestedProps<T>]: PersistentType<T[p]> } & ToFullAsyncAccessors<RegularProps<T>>
+  : BaseType<T>;
 
 type AsyncGetters<T> = {
   [p in keyof T as `${typeof GetterPrefix}${Capitalize<string & p>}`]: () => Promise<
@@ -45,18 +60,21 @@ interface Internal {
   [id: symbol]: Internals;
 }
 
-const InternalKey = Symbol('internal');
+const InternalKey: unique symbol = Symbol('internal');
 
-export function CreatePersistent<T extends Prop>(
+export function CreatePersistentImpl<T extends Prop>(
   props: T,
-  options: PersistentCreationOptions<RegularInterface<T>>
-): ToFullAsyncAccessors<T> {
+  options: PersistentCreationOptions<RegularInterface<T>>,
+  root?: RegularInterface<T>
+): PersistentType<T> {
   return new Proxy(
     {
       [InternalKey]: { storeInProgress: false, pendingSetters: [] },
-    } as unknown as RegularInterface<T> & ToFullAsyncAccessors<T> & Internal,
+    } as unknown as RegularInterface<T> & PersistentType<T> & Internal,
     {
       get: (target, prop, receiver) => {
+        const rootObj = root ?? receiver;
+
         if (typeof prop === 'string') {
           if (!Object.prototype.hasOwnProperty.call(target, prop)) {
             if (IsGetterName(prop)) {
@@ -68,7 +86,7 @@ export function CreatePersistent<T extends Prop>(
                     resolve(target[srcProp]);
                   } else {
                     options.storage.Load().then((x) => {
-                      AssignInPlace(target, x ?? {});
+                      AssignInPlace(rootObj, x ?? {});
 
                       resolve(target[srcProp]);
                     });
@@ -88,7 +106,7 @@ export function CreatePersistent<T extends Prop>(
                     internals.storeInProgress = true;
 
                     process.nextTick(() => {
-                      options.storage.Store(OmitAccessors(target)).then((x) => {
+                      options.storage.Store(OmitAccessors(rootObj)).then((x) => {
                         internals.storeInProgress = false;
 
                         internals.pendingSetters.forEach((x) => x());
@@ -97,14 +115,25 @@ export function CreatePersistent<T extends Prop>(
                     });
                   }
                 })) as typeof target[keyof AsyncSetters<T>];
+            } else if (props[prop]) {
+              (target as Prop)[prop] = CreatePersistentImpl(props[prop] as Prop, options, rootObj);
             }
           }
 
           return target[prop];
+        } else if (prop === InternalKey) {
+          return target[InternalKey];
         }
       },
     }
-  ) as ToFullAsyncAccessors<T>;
+  ) as PersistentType<T>;
+}
+
+export function CreatePersistent<T extends Prop>(
+  props: T,
+  options: PersistentCreationOptions<RegularInterface<T>>
+): PersistentType<T> {
+  return CreatePersistentImpl(props, options);
 }
 
 type GetterName = `${typeof GetterPrefix}${string}`;
@@ -140,22 +169,47 @@ function GetPropertyNameFromAccessor<T extends Prop>(
   return '';
 }
 
+interface PersistentLike {
+  [id: string]: unknown;
+  [id: symbol]: Internals;
+  [id: `${typeof SetterPrefix}${Capitalize<string>}${string}`]: (x: unknown) => Promise<void>;
+}
+
+
 interface AnyObject {
   [id: string]: unknown;
 }
 
-function AssignInPlace(target: AnyObject, source: AnyObject) {
+function AssignInPlace<T>(target: PersistentLike, source: AnyObject) {
+  target[InternalKey].storeInProgress = true;
+  AssignInPlaceImpl(target, source);
+  target[InternalKey].storeInProgress = false;
+}
+
+function AssignInPlaceImpl(target: PersistentLike, source: AnyObject) {
   for (const key in source) {
-    target[key] = source[key];
+    if (typeof source[key] === 'object') {
+      AssignInPlace(target[key] as PersistentLike, source[key] as PersistentLike);
+    } else {
+      target[SetterMethodByPropName(key)](source[key]);
+    }
   }
 }
 
-function OmitAccessors<T extends AnyObject>(obj: T): T {
+function SetterMethodByPropName(prop: string): `${typeof SetterPrefix}${Capitalize<string>}${string}` {
+  return `${SetterPrefix}${prop[0].toUpperCase() as Capitalize<string>}${prop.slice(1)}`;
+}
+
+function OmitAccessors<T extends PersistentLike>(obj: T): T {
   const ret: T = {} as T;
 
   for (const key in obj) {
     if (!(key.startsWith(GetterPrefix) || key.startsWith(SetterPrefix))) {
-      ret[key] = obj[key];
+      if (isProxy(obj[key])) {
+        ret[key] = OmitAccessors(obj[key] as any);
+      } else {
+        ret[key] = obj[key];
+      }
     }
   }
 
