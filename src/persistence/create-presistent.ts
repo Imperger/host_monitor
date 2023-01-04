@@ -175,7 +175,6 @@ interface PersistentLike {
   [id: `${typeof SetterPrefix}${Capitalize<string>}${string}`]: (x: unknown) => Promise<void>;
 }
 
-
 interface AnyObject {
   [id: string]: unknown;
 }
@@ -196,7 +195,9 @@ function AssignInPlaceImpl(target: PersistentLike, source: AnyObject) {
   }
 }
 
-function SetterMethodByPropName(prop: string): `${typeof SetterPrefix}${Capitalize<string>}${string}` {
+function SetterMethodByPropName(
+  prop: string
+): `${typeof SetterPrefix}${Capitalize<string>}${string}` {
   return `${SetterPrefix}${prop[0].toUpperCase() as Capitalize<string>}${prop.slice(1)}`;
 }
 
