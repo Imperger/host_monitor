@@ -171,7 +171,7 @@ function GetPropertyNameFromAccessor<T extends Prop>(
 
 interface PersistentLike {
   [id: string]: unknown;
-  [id: symbol]: Internals;
+  [InternalKey]: Internals;
   [id: `${typeof SetterPrefix}${Capitalize<string>}${string}`]: (x: unknown) => Promise<void>;
 }
 
