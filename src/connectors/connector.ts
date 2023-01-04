@@ -22,6 +22,10 @@ export class Connector {
     this.sinks.push(sink);
   }
 
+  get HasSink(): boolean {
+    return this.sinks.length > 0;
+  }
+
   async Flush(msg: string): Promise<void> {
     const now = Date.now();
     const elapsed = now - ((await this.state.GetChecked()) ?? now);
